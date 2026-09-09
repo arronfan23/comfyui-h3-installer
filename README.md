@@ -1,5 +1,7 @@
 # ComfyUI + H3 一键安装器（Windows）
 
+> 由 **三猫云 SanMaoCloud** 打包维护
+
 一条命令装好 **ComfyUI + MiniMax H3（Hailuo 3）全套模型**，并自动配置好
 **Codex ↔ ComfyUI 的 MCP 控制接口**——装完直接让 Codex 用自然语言帮你画图、生成视频。
 

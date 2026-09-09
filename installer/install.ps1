@@ -74,6 +74,7 @@ function Install-ZipFromUrl($url, $destDir, $innerPrefix) {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "   三猫云 SanMaoCloud" -ForegroundColor Cyan
 Write-Host "   ComfyUI + H3 模型  在线一键安装"
 Write-Host "   全程联网下载（约 70GB），请保持网络畅通"
 Write-Host "============================================" -ForegroundColor Cyan
@@ -90,6 +91,14 @@ Info "安装目录: $InstallDir"
 $gpu = $null
 try { $gpu = (nvidia-smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1) } catch {}
 if ($gpu) { Ok "检测到显卡: $gpu" } else { Warn "未检测到 NVIDIA 显卡！ComfyUI 将无法用 GPU 推理。" }
+
+# 驱动版本检查（PyTorch cu130 需要 580+ 驱动）
+$drv = $null
+try { $drv = (nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>$null | Select-Object -First 1).Trim() } catch {}
+if ($drv -and ([int]($drv.Split('.')[0]) -lt 580)) {
+    Warn "显卡驱动版本 $drv 过旧，PyTorch cu130 需要 580 或更新版本"
+    Warn "请到 NVIDIA 官网下载最新驱动: https://www.nvidia.cn/Download/index.aspx?lang=cn"
+}
 
 $needGB = if ($SkipModels) { 10 } else { 75 }
 $drive = New-Object System.IO.DriveInfo($InstallDir.Substring(0,1))
@@ -240,9 +249,10 @@ Ok "Node.js 就绪: $(& $nodeExe -v)"
 $bat = @"
 @echo off
 chcp 65001 >nul
-title ComfyUI
+title 三猫云 SanMaoCloud - ComfyUI
 cd /d %~dp0
 echo ========================================
+echo   三猫云 SanMaoCloud
 echo   ComfyUI 启动中...
 echo   浏览器访问: http://127.0.0.1:8188
 echo   关闭此窗口即停止服务
@@ -287,6 +297,7 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host "   安装完成！"
 Write-Host "   启动: $InstallDir\启动ComfyUI.bat"
 Write-Host "   Codex 中即可通过 comfyui MCP 操控"
+Write-Host "   三猫云 SanMaoCloud 出品" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 
 if (-not $NoStart) {

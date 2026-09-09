@@ -10,10 +10,12 @@ with automatic **Codex MCP integration** so your AI agent can drive ComfyUI for 
 
 ## 快速开始
 
-1. 点击页面右上角 **Code → Download ZIP**，解压到任意位置
+1. 点击页面右上角 **Code → Download ZIP** 下载
    （或 `git clone https://github.com/arronfan23/comfyui-h3-installer.git`）
-2. 双击 **`一键安装.bat`**
-3. 等待完成（视网速 1~3 小时，共下载约 70GB，模型支持断点续传）
+2. **右键下载的 ZIP →「全部解压缩」**（不要在压缩包窗口里直接双击！）
+3. 打开解压后的文件夹，双击 **`一键安装.bat`**
+   - 若出现"Windows 已保护你的电脑"：点「更多信息」→「仍要运行」
+4. 等待完成（视网速 1~3 小时，共下载约 70GB，模型支持断点续传）
 
 完成后会自动启动 ComfyUI 并打开 http://127.0.0.1:8188 。
 

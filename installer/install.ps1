@@ -288,7 +288,23 @@ try {
     }
 } catch { Warn "写入 Codex 配置失败（不影响 ComfyUI 本身）: $_" }
 
-# ---------- 10. 冒烟测试 ----------
+# ---------- 10. 桌面快捷方式 ----------
+try {
+    $icoDest = Join-Path $InstallDir "assets\sanmaocloud-cat.ico"
+    New-Item -ItemType Directory -Path (Split-Path $icoDest) -Force | Out-Null
+    Copy-Item (Join-Path $InstallerDir "sanmaocloud-cat.ico") $icoDest -Force
+    $ws = New-Object -ComObject WScript.Shell
+    $sc = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "三猫云 ComfyUI H3.lnk"))
+    $sc.TargetPath = Join-Path $InstallDir "启动ComfyUI.bat"
+    $sc.WorkingDirectory = $InstallDir
+    $sc.IconLocation = "$icoDest,0"
+    $sc.Description = "三猫云 sanmaocloud - ComfyUI H3 一键启动"
+    $sc.WindowStyle = 1
+    $sc.Save()
+    Ok "桌面快捷方式: 三猫云 ComfyUI H3"
+} catch { Warn "创建桌面快捷方式失败（不影响使用）: $_" }
+
+# ---------- 11. 冒烟测试 ----------
 Info "验证 PyTorch CUDA ..."
 $cudaOk = & $venvPy -c "import torch;print(torch.cuda.is_available())"
 if ($cudaOk -eq "True") { Ok "PyTorch CUDA 可用" } else { Warn "torch.cuda.is_available() = $cudaOk，请检查显卡驱动" }

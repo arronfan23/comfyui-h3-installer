@@ -1,7 +1,7 @@
 @echo off
 rem SanMaoCloud - ComfyUI H3 one-click installer
 cd /d %~dp0
-title SanMaoCloud ComfyUI H3 Installer
+title sanmaocloud - ComfyUI H3 Installer
 if not exist "%~dp0installer\install.ps1" (
   echo [ERROR] installer\install.ps1 not found!
   echo.

@@ -72,13 +72,9 @@ function Install-ZipFromUrl($url, $destDir, $innerPrefix) {
     }
 }
 
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "   三猫云 SanMaoCloud" -ForegroundColor Cyan
-Write-Host "   ComfyUI + H3 模型  在线一键安装"
-Write-Host "   全程联网下载（约 70GB），请保持网络畅通"
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host ""
+. (Join-Path $InstallerDir "smo-banner.ps1")
+try { $Host.UI.RawUI.WindowTitle = "sanmaocloud - ComfyUI H3 一键安装" } catch {}
+Show-SmoBanner -Subtitle "ComfyUI + H3 模型  在线一键安装" -Note "全程联网下载（约 70GB），请保持网络畅通"
 
 # ---------- 0. 安装目录 ----------
 if (-not $InstallDir) {

@@ -245,24 +245,9 @@ if (-not (Test-Path $nodeExe)) {
 & $nodeExe -v | Out-Null
 Ok "Node.js 就绪: $(& $nodeExe -v)"
 
-# ---------- 8. 启动脚本 ----------
-$bat = @"
-@echo off
-chcp 65001 >nul
-title 三猫云 SanMaoCloud - ComfyUI
-cd /d %~dp0
-echo ========================================
-echo   三猫云 SanMaoCloud
-echo   ComfyUI 启动中...
-echo   浏览器访问: http://127.0.0.1:8188
-echo   关闭此窗口即停止服务
-echo ========================================
-call venv\Scripts\activate.bat
-python main.py
-pause
-"@
-# 写为 CRLF，避免 cmd 解析 LF-only 批处理出错
-[System.IO.File]::WriteAllText((Join-Path $InstallDir "启动ComfyUI.bat"), ($bat -replace "`n", "`r`n"), [System.Text.Encoding]::UTF8)
+# ---------- 8. 启动脚本（三猫云品牌启动器，自包含 bat + SMO 横幅）----------
+Copy-Item (Join-Path $InstallerDir "启动ComfyUI.bat") $InstallDir -Force
+Ok "启动脚本: 启动ComfyUI.bat"
 
 # ---------- 9. 写入 Codex MCP 配置 ----------
 if (-not $CodexConfigPath) { $CodexConfigPath = Join-Path $env:USERPROFILE ".codex\config.toml" }
@@ -288,23 +273,7 @@ try {
     }
 } catch { Warn "写入 Codex 配置失败（不影响 ComfyUI 本身）: $_" }
 
-# ---------- 10. 桌面快捷方式 ----------
-try {
-    $icoDest = Join-Path $InstallDir "assets\sanmaocloud-cat.ico"
-    New-Item -ItemType Directory -Path (Split-Path $icoDest) -Force | Out-Null
-    Copy-Item (Join-Path $InstallerDir "sanmaocloud-cat.ico") $icoDest -Force
-    $ws = New-Object -ComObject WScript.Shell
-    $sc = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "三猫云 ComfyUI H3.lnk"))
-    $sc.TargetPath = Join-Path $InstallDir "启动ComfyUI.bat"
-    $sc.WorkingDirectory = $InstallDir
-    $sc.IconLocation = "$icoDest,0"
-    $sc.Description = "三猫云 sanmaocloud - ComfyUI H3 一键启动"
-    $sc.WindowStyle = 1
-    $sc.Save()
-    Ok "桌面快捷方式: 三猫云 ComfyUI H3"
-} catch { Warn "创建桌面快捷方式失败（不影响使用）: $_" }
-
-# ---------- 11. 冒烟测试 ----------
+# ---------- 10. 冒烟测试 ----------
 Info "验证 PyTorch CUDA ..."
 $cudaOk = & $venvPy -c "import torch;print(torch.cuda.is_available())"
 if ($cudaOk -eq "True") { Ok "PyTorch CUDA 可用" } else { Warn "torch.cuda.is_available() = $cudaOk，请检查显卡驱动" }

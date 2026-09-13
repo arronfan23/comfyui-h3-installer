@@ -38,12 +38,12 @@ function Download-File($url, $dest, [long]$expectSize = -1) {
     New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
     # 已完成则跳过
     if ((Test-Path $dest) -and ($expectSize -lt 0 -or (Get-Item $dest).Length -eq $expectSize)) { return $true }
-    & curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 -C - -o "$dest" "$url"
+    & curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -C - -o "$dest" "$url"
     if ($LASTEXITCODE -ne 0) { return $false }
     if ($expectSize -ge 0 -and (Get-Item $dest).Length -ne $expectSize) {
         Warn "文件大小不符，重新下载: $(Split-Path $dest -Leaf)"
         Remove-Item $dest -Force
-        & curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 -o "$dest" "$url"
+        & curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -o "$dest" "$url"
         if ($LASTEXITCODE -ne 0) { return $false }
         if ((Get-Item $dest).Length -ne $expectSize) { return $false }
     }
@@ -96,10 +96,22 @@ if ($drv -and ([int]($drv.Split('.')[0]) -lt 580)) {
     Warn "请到 NVIDIA 官网下载最新驱动: https://www.nvidia.cn/Download/index.aspx?lang=cn"
 }
 
-$needGB = if ($SkipModels) { 10 } else { 75 }
+# 磁盘检查按"剩余待下载量 + 12GB 环境开销"计算，已下载部分不重复计入
+$remainBytes = 0L
+if (-not $SkipModels) {
+    foreach ($m in $Models) {
+        $dest = Join-Path $InstallDir ("models\" + ($m.File -replace '/', '\'))
+        $have = if (Test-Path $dest) { (Get-Item $dest).Length } else { 0L }
+        if ($have -lt $m.Size) { $remainBytes += ($m.Size - $have) }
+    }
+}
+if ($remainBytes -gt 0 -and $remainBytes -lt 60GB) {
+    Info "检测到已下载部分模型，还需下载约 $([math]::Round($remainBytes/1GB,1))GB"
+}
+$needGB = [math]::Ceiling($remainBytes / 1GB) + 12
 $drive = New-Object System.IO.DriveInfo($InstallDir.Substring(0,1))
 if ($drive.AvailableFreeSpace -lt $needGB * 1GB) {
-    Fail "磁盘 $($drive.Name) 剩余空间不足（需要约 ${needGB}GB，当前 $([math]::Round($drive.AvailableFreeSpace/1GB))GB）"
+    Fail "磁盘 $($drive.Name) 剩余空间不足（还需约 ${needGB}GB = 待下载 $([math]::Round($remainBytes/1GB,1))GB + 环境约 12GB；当前剩余 $([math]::Round($drive.AvailableFreeSpace/1GB,1))GB）"
 }
 
 # ---------- 2. ComfyUI 主程序 ----------

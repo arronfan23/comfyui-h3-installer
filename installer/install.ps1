@@ -39,12 +39,12 @@ function Download-File($url, $dest, [long]$expectSize = -1) {
     New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
     # 已完成则跳过
     if ((Test-Path $dest) -and ($expectSize -lt 0 -or (Get-Item $dest).Length -eq $expectSize)) { return $true }
-    & curl.exe -fL --progress-bar --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -C - -o "$dest" "$url"
+    & curl.exe -fL --progress-bar --ssl-no-revoke --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -C - -o "$dest" "$url"
     if ($LASTEXITCODE -ne 0) { return $false }
     if ($expectSize -ge 0 -and (Get-Item $dest).Length -ne $expectSize) {
         Warn "文件大小不符，重新下载: $(Split-Path $dest -Leaf)"
         Remove-Item $dest -Force
-        & curl.exe -fL --progress-bar --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -o "$dest" "$url"
+        & curl.exe -fL --progress-bar --ssl-no-revoke --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -o "$dest" "$url"
         if ($LASTEXITCODE -ne 0) { return $false }
         if ((Get-Item $dest).Length -ne $expectSize) { return $false }
     }

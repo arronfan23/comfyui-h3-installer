@@ -27,7 +27,7 @@ with automatic **Codex MCP integration** so your AI agent can drive ComfyUI for 
 | 自定义节点 | ComfyUI-Manager + 界面中文翻译 |
 | Python | 没有 Python 3.12 则自动静默安装（当前用户，无需管理员） |
 | 依赖 | venv + PyTorch 2.11 (cu130) + 全部锁定版本依赖 |
-| 模型 | 从 HuggingFace 官方仓库下载 H3 全套（64GB，断点续传，国内自动切镜像） |
+| 模型 | 从 HuggingFace 官方仓库下载 H3 全套（64GB，断点续传；国内自动走 ModelScope 高速源） |
 | MCP | 内置 comfyui-mcp + Node.js 便携版，自动写入 Codex `config.toml` |
 
 ## 系统要求
@@ -35,7 +35,7 @@ with automatic **Codex MCP integration** so your AI agent can drive ComfyUI for 
 - Windows 10 / 11 64 位
 - NVIDIA 显卡（RTX 20 系或更新），显存建议 **16GB+**
 - 磁盘剩余 **75GB+**
-- 全程联网（国内网络无需配置，HuggingFace 不通会自动切换 hf-mirror 镜像）
+- 全程联网（国内网络无需配置，HuggingFace 不通会自动切换 ModelScope / hf-mirror 国内源）
 
 ## 日常使用
 
@@ -59,7 +59,8 @@ powershell -ExecutionPolicy Bypass -File installer\install.ps1 -SkipModels
 
 ## 模型清单与来源
 
-安装时从 HuggingFace 官方仓库直接下载（本仓库不转存模型文件）：
+安装时从 HuggingFace 官方仓库直接下载（本仓库不转存模型文件；国内网络自动改走
+ModelScope 上的 Comfy-Org 官方镜像仓库，内容一致）：
 
 | 文件 | 大小 | 来源 |
 | --- | --- | --- |

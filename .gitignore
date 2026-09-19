@@ -1,3 +1,5 @@
 installer/install.log
 publish.ps1
 cleanup-and-push.ps1
+
+push-update.ps1

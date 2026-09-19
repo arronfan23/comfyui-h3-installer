@@ -39,16 +39,66 @@ function Download-File($url, $dest, [long]$expectSize = -1) {
     New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
     # 已完成则跳过
     if ((Test-Path $dest) -and ($expectSize -lt 0 -or (Get-Item $dest).Length -eq $expectSize)) { return $true }
-    & curl.exe -fL --progress-bar --ssl-no-revoke --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -C - -o "$dest" "$url"
-    if ($LASTEXITCODE -ne 0) { return $false }
+    $ok = Invoke-CurlDownload $url $dest $expectSize $false
+    if (-not $ok) { return $false }
     if ($expectSize -ge 0 -and (Get-Item $dest).Length -ne $expectSize) {
         Warn "文件大小不符，重新下载: $(Split-Path $dest -Leaf)"
         Remove-Item $dest -Force
-        & curl.exe -fL --progress-bar --ssl-no-revoke --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --speed-limit 10240 --speed-time 30 -o "$dest" "$url"
-        if ($LASTEXITCODE -ne 0) { return $false }
+        $ok = Invoke-CurlDownload $url $dest $expectSize $true
+        if (-not $ok) { return $false }
         if ((Get-Item $dest).Length -ne $expectSize) { return $false }
     }
     return $true
+}
+
+function Format-Size([long]$bytes) {
+    if ($bytes -lt 0) { return "?" }
+    if ($bytes -ge 1GB) { return "{0:F1}GB" -f ($bytes / 1GB) }
+    return "{0:F0}MB" -f ($bytes / 1MB)
+}
+
+# curl 后台静默下载，PowerShell 绘制单线条状进度条（控制台不被 curl 输出污染）
+function Invoke-CurlDownload($url, $dest, [long]$expectSize, [bool]$fresh) {
+    $argList = @("-fL", "-sS", "--ssl-no-revoke",
+                 "--retry", "5", "--retry-delay", "5", "--retry-all-errors",
+                 "--connect-timeout", "15", "--speed-limit", "10240", "--speed-time", "30")
+    if (-not $fresh) { $argList += @("-C", "-") }
+    $argList += @("-o", "`"$dest`"", "`"$url`"")
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = "curl.exe"
+    $psi.Arguments = ($argList -join " ")
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardError = $true
+    $p = [System.Diagnostics.Process]::new()
+    $p.StartInfo = $psi
+    [void]$p.Start()
+    $lastLen = 0L; $lastTime = Get-Date
+    while (-not $p.HasExited) {
+        Start-Sleep -Milliseconds 1000
+        $len = if (Test-Path $dest) { (Get-Item $dest).Length } else { 0L }
+        $now = Get-Date
+        $elapsed = ($now - $lastTime).TotalSeconds
+        $spd = if ($elapsed -gt 0) { ($len - $lastLen) / $elapsed } else { 0 }
+        $lastLen = $len; $lastTime = $now
+        $bar = ""
+        if ($expectSize -gt 0) {
+            $pct = [math]::Min(100.0, $len * 100.0 / $expectSize)
+            $fill = [int]($pct / 100 * 24)
+            $bar = "[" + [string]::new([char]0x2588, $fill) + [string]::new([char]0x2591, 24 - $fill) + (" {0,5:F1}%] " -f $pct)
+        }
+        $spdText = if ($spd -ge 1MB) { "{0:F1}MB/s" -f ($spd / 1MB) } else { "{0:F0}KB/s" -f ($spd / 1KB) }
+        Write-Host ("`r  " + $bar + (Format-Size $len) + "/" + (Format-Size $expectSize) + "  " + $spdText + "    ") -NoNewline
+    }
+    $p.WaitForExit()
+    Write-Host ""
+    $code = $p.ExitCode
+    if ($code -ne 0) {
+        $errText = $p.StandardError.ReadToEnd()
+        $tail = (($errText -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join " | ").Trim()
+        if ($tail) { Warn "下载中断: $tail" }
+    }
+    return ($code -eq 0)
 }
 
 function Install-ZipFromUrl($url, $destDir, $innerPrefix) {
@@ -152,22 +202,38 @@ if ($SkipModels) {
 } else {
     $totalGB = [math]::Round(($Models | ForEach-Object { $_.Size } | Measure-Object -Sum).Sum / 1GB, 1)
     Info "下载 H3 模型（共 ${totalGB}GB，支持断点续传）..."
+    # 探测 HuggingFace 连通性，决定下载源顺序（不可达时优先国内高速源 ModelScope）
+    $hfOk = $false
+    if (-not $UseMirror) {
+        & curl.exe -sf --ssl-no-revoke --connect-timeout 8 -o NUL "https://huggingface.co/api/models/Comfy-Org/MiniMax-H3" 2>$null
+        $hfOk = ($LASTEXITCODE -eq 0)
+        if ($hfOk) { Ok "HuggingFace 直连可用" } else { Info "HuggingFace 不可达，优先国内高速源 ModelScope" }
+    }
     foreach ($m in $Models) {
         $dest = Join-Path $InstallDir ("models\" + ($m.File -replace '/', '\'))
         if ((Test-Path $dest) -and (Get-Item $dest).Length -eq $m.Size) {
             Ok "已存在: $($m.File)"
             continue
         }
-        Info "  -> $($m.File)  ($([math]::Round($m.Size/1GB,1)) GB)"
-        $done = $false
-        if (-not $UseMirror) {
-            $done = Download-File "https://huggingface.co/$($m.Repo)/resolve/main/$($m.File)" $dest $m.Size
-            if (-not $done) { Warn "HuggingFace 直连失败，切换 hf-mirror.com 镜像..." }
+        Info "下载: $($m.File)  ($([math]::Round($m.Size/1GB,1)) GB)"
+        $urls = @()
+        if ($hfOk) {
+            $urls += "https://huggingface.co/$($m.Repo)/resolve/main/$($m.File)"
+            $urls += "https://modelscope.cn/models/$($m.Repo)/resolve/master/$($m.File)"
+            $urls += "https://hf-mirror.com/$($m.Repo)/resolve/main/$($m.File)"
+        } else {
+            $urls += "https://modelscope.cn/models/$($m.Repo)/resolve/master/$($m.File)"
+            $urls += "https://hf-mirror.com/$($m.Repo)/resolve/main/$($m.File)"
+            $urls += "https://huggingface.co/$($m.Repo)/resolve/main/$($m.File)"
         }
-        if (-not $done) {
-            $done = Download-File "https://hf-mirror.com/$($m.Repo)/resolve/main/$($m.File)" $dest $m.Size
+        $done = $false
+        foreach ($u in $urls) {
+            $done = Download-File $u $dest $m.Size
+            if ($done) { break }
+            Warn "换下一个下载源..."
         }
         if (-not $done) { Fail "模型下载失败: $($m.File)。请检查网络后重跑本脚本（已下载部分会续传）" }
+        Ok "完成: $(Split-Path $dest -Leaf)"
     }
     Ok "模型下载完成"
 }

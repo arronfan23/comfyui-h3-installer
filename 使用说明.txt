@@ -18,7 +18,8 @@
   - 默认装到「本文件夹旁边的 ComfyUI 目录」
   - 完成后自动启动 ComfyUI 并打开 http://127.0.0.1:8188
   - 视网速约 1~3 小时，看到"安装完成"即成功
-  - 国内网络无需手动设置：HuggingFace 连不上会自动切换镜像
+  - 国内网络无需手动设置：HuggingFace 连不上会自动切换
+    ModelScope 国内高速源（魔搭，Comfy-Org 官方镜像，速度快）
 
 【日常使用】
   1. 双击 ComfyUI 文件夹里的「启动ComfyUI.bat」
@@ -29,7 +30,7 @@
   - 杀毒软件拦截 PowerShell：选择允许；全部脚本开源可查看
   - 中途中断：重新双击「一键安装.bat」，已完成步骤自动跳过，
     模型下载自动断点续传
-  - 国内用户强制走镜像下载模型：
+  - 国内用户强制走国内源下载模型：
       powershell -ExecutionPolicy Bypass -File installer\install.ps1 -UseMirror
   - 自定义安装目录：
       powershell -ExecutionPolicy Bypass -File installer\install.ps1 -InstallDir "E:\AI\ComfyUI"

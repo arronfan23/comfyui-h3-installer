@@ -22,6 +22,24 @@ function Ok($msg)    { Write-Host "[完成] $msg" -ForegroundColor Green }
 function Warn($msg)  { Write-Host "[注意] $msg" -ForegroundColor Yellow }
 function Fail($msg)  { Write-Host "[失败] $msg" -ForegroundColor Red; throw $msg }
 
+# ---------- curl 检测 ----------
+# 优先用 System32 自带的 curl（随 Windows 更新较新），避免 PATH 里的老版本抢道
+$script:CurlExe = "curl.exe"
+$sysCurl = Join-Path $env:SystemRoot "System32\curl.exe"
+if (Test-Path $sysCurl) { $script:CurlExe = $sysCurl }
+# 按 curl 版本裁剪参数：--ssl-no-revoke 需 7.44+，--retry-all-errors 需 7.71+
+$script:CurlExtraFlags = @()
+try {
+    $curlVerText = (& $script:CurlExe --version 2>$null | Select-Object -First 1)
+    if ($curlVerText -match "curl (\d+)\.(\d+)\.(\d+)") {
+        $cv = [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])"
+        if ($cv -ge [version]"7.44.0") { $script:CurlExtraFlags += "--ssl-no-revoke" }
+        if ($cv -ge [version]"7.71.0") { $script:CurlExtraFlags += "--retry-all-errors" }
+    } else {
+        Warn "无法识别 curl 版本，使用保守参数"
+    }
+} catch { Warn "curl 检测失败，使用保守参数" }
+
 # ComfyUI 版本（含 MiniMax H3 支持、与锁定依赖兼容的官方 master 提交）
 $ComfyUICommit = "34744cd29eacea9bbdec17e628a81c2ce0737d16"
 
@@ -59,13 +77,16 @@ function Format-Size([long]$bytes) {
 
 # curl 后台静默下载，PowerShell 绘制单线条状进度条（控制台不被 curl 输出污染）
 function Invoke-CurlDownload($url, $dest, [long]$expectSize, [bool]$fresh) {
-    $argList = @("-fL", "-sS", "--ssl-no-revoke",
-                 "--retry", "5", "--retry-delay", "5", "--retry-all-errors",
+    $curlBin = $script:CurlExe
+    if (-not $curlBin) { $curlBin = "curl.exe" }
+    $argList = @("-fL", "-sS",
+                 "--retry", "5", "--retry-delay", "5",
                  "--connect-timeout", "15", "--speed-limit", "10240", "--speed-time", "30")
+    if ($script:CurlExtraFlags) { $argList += $script:CurlExtraFlags }
     if (-not $fresh) { $argList += @("-C", "-") }
     $argList += @("-o", "`"$dest`"", "`"$url`"")
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = "curl.exe"
+    $psi.FileName = $curlBin
     $psi.Arguments = ($argList -join " ")
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
@@ -205,7 +226,7 @@ if ($SkipModels) {
     # 探测 HuggingFace 连通性，决定下载源顺序（不可达时优先国内高速源 ModelScope）
     $hfOk = $false
     if (-not $UseMirror) {
-        & curl.exe -sf --ssl-no-revoke --connect-timeout 8 -o NUL "https://huggingface.co/api/models/Comfy-Org/MiniMax-H3" 2>$null
+        & $script:CurlExe -sf @($script:CurlExtraFlags) --connect-timeout 8 -o NUL "https://huggingface.co/api/models/Comfy-Org/MiniMax-H3" 2>$null
         $hfOk = ($LASTEXITCODE -eq 0)
         if ($hfOk) { Ok "HuggingFace 直连可用" } else { Info "HuggingFace 不可达，优先国内高速源 ModelScope" }
     }
